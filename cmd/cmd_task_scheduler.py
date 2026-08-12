@@ -47,19 +47,15 @@ class RM_Scheduling:
     def _get_utilization(self):
         n = len(self.tasks)
         if n == 0:
-            return True
+            return 0
 
         utilization = np.sum([task.e / task.p for task in self.tasks])
 
-        # If harmonic, bound is exactly 1.0 (100%). Otherwise, use L&L bound.
         if self._is_harmonic():
             rm_bound = 1.0
-            bound_type = "Harmonic Bound"
         else:
             rm_bound = n * ((2 ** (1 / n)) - 1)
-            bound_type = "Liu & Layland Bound"
 
-        print(f"Total Utilization: {utilization:.4f} | {bound_type}: {rm_bound:.4f}")
         return utilization
 
     def _get_hyperperiod(self):
@@ -74,7 +70,6 @@ class RM_Scheduling:
 
         utilization = self._get_utilization()
         if utilization > 1:
-            print("Utilization > 1: Task set is not schedulable.")
             return {}
 
         hyperperiod = self._get_hyperperiod()
@@ -101,7 +96,7 @@ class RM_Scheduling:
                     running_task = task
                     break
 
-            if running_task is None: #SPEEEEEEEED UP 
+            if running_task is None:  # SPEEEEEEEED UP
                 next_t = min(next_release.values())
                 t = next_t
                 last_running_task = None
@@ -132,12 +127,22 @@ class RM_Scheduling:
                     if time_until > 1e-9 and time_until < time_to_next_event:
                         time_to_next_event = time_until
 
+            active_tasks = [task for task in sorted_tasks if remaining_e[task.task_id] > 1e-9]
+            
+            if active_tasks:
+                earliest_deadline = min(next_release[task.task_id] - task.p + task.d for task in active_tasks)
+                time_to_next_event = min(time_to_next_event, earliest_deadline - t)
+
             run_time = min(time_to_finish, time_to_next_event)
 
             remaining_e[running_task.task_id] -= run_time
             t += run_time
-            # If the task finished, it's no longer "running" 
-            # forward as last_running_task (avoids false preemption on new release)
+
+            # 2. Did any task fail to finish before its absolute deadline?
+            if any(t >= (next_release[task.task_id] - task.p + task.d) - 1e-9 
+                   for task in sorted_tasks if remaining_e[task.task_id] > 1e-9):
+                return {}
+            # If the task finished, it's no longer "running"
             if remaining_e[running_task.task_id] < 1e-9:
                 last_running_task = None
             else:
@@ -160,17 +165,10 @@ if __name__ == "__main__":
 
     rm_solver = RM_Scheduling(user_tasks)
 
-    print("--- Task Characteristics ---")
-    rm_solver.print_tasks()
-
-    print("\n--- Schedulability Tests ---")
-    print(f"Is Harmonic: {rm_solver._is_harmonic()}")
-    print(f"Utilization Bound: {rm_solver._get_utilization()}")
-
-    hyperperiod = rm_solver._get_hyperperiod()
-    print(f"Hyperperiod: {hyperperiod}")
-
-    print("\n--- Simulation Results ---")
     preemptions = rm_solver.get_premptions()
-    for task_id, count in preemptions.items():
-        print(f"Task {task_id} preempted {count} time(s) in one hyperperiod.")
+    if preemptions:
+        print(1)
+        print(",".join(str(count) for count in preemptions.values()))
+    else:
+        print(0)
+        print()
