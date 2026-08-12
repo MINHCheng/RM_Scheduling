@@ -70,7 +70,81 @@ class RM_Scheduling:
         return int(np.lcm.reduce(periods))
 
     def get_premptions(self):
-        pass
+        self._get_priority()
+
+        utilization = self._get_utilization()
+        if utilization > 1:
+            print("Utilization > 1: Task set is not schedulable.")
+            return {}
+
+        hyperperiod = self._get_hyperperiod()
+        sorted_tasks = sorted(self.tasks, key=lambda t: t.priority)
+
+        preemptions = {task.task_id: 0 for task in self.tasks}
+        remaining_e = {task.task_id: 0.0 for task in self.tasks}
+        next_release = {task.task_id: 0.0 for task in self.tasks}
+
+        t = 0.0
+        last_running_task = None
+
+        while t < hyperperiod:
+            # Release jobs at time t
+            for task in sorted_tasks:
+                if t >= next_release[task.task_id]:
+                    remaining_e[task.task_id] += task.e
+                    next_release[task.task_id] += task.p
+
+            # Find highest-priority ready task
+            running_task = None
+            for task in sorted_tasks:
+                if remaining_e[task.task_id] > 1e-9:
+                    running_task = task
+                    break
+
+            if running_task is None: #SPEEEEEEEED UP 
+                next_t = min(next_release.values())
+                t = next_t
+                last_running_task = None
+                continue
+
+            # A preemption occurs only when a higher-priority task takes over
+            # from a task that still has remaining work
+            if (
+                last_running_task is not None
+                and last_running_task != running_task.task_id
+                and remaining_e[last_running_task] > 1e-9
+            ):
+                # Verify the new task has higher priority (lower number)
+                last_priority = next(
+                    t.priority for t in self.tasks if t.task_id == last_running_task
+                )
+                if running_task.priority < last_priority:
+                    preemptions[last_running_task] += 1
+
+            # Determine how long this task can run
+            time_to_finish = remaining_e[running_task.task_id]
+
+            # Find the earliest release of any higher-priority task
+            time_to_next_event = hyperperiod - t
+            for task in sorted_tasks:
+                if task.priority < running_task.priority:
+                    time_until = next_release[task.task_id] - t
+                    if time_until > 1e-9 and time_until < time_to_next_event:
+                        time_to_next_event = time_until
+
+            run_time = min(time_to_finish, time_to_next_event)
+
+            remaining_e[running_task.task_id] -= run_time
+            t += run_time
+            # If the task finished, it's no longer "running" 
+            # forward as last_running_task (avoids false preemption on new release)
+            if remaining_e[running_task.task_id] < 1e-9:
+                last_running_task = None
+            else:
+                last_running_task = running_task.task_id
+
+        return preemptions
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -95,3 +169,8 @@ if __name__ == "__main__":
 
     hyperperiod = rm_solver._get_hyperperiod()
     print(f"Hyperperiod: {hyperperiod}")
+
+    print("\n--- Simulation Results ---")
+    preemptions = rm_solver.get_premptions()
+    for task_id, count in preemptions.items():
+        print(f"Task {task_id} preempted {count} time(s) in one hyperperiod.")
