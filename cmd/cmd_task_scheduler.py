@@ -160,7 +160,6 @@ class RM_Scheduling:
 
 
 if __name__ == "__main__":
-    import time
 
     if len(sys.argv) < 2:
         print("Usage: python script.py <task_file.csv>")
@@ -175,9 +174,7 @@ if __name__ == "__main__":
 
     rm_solver = RM_Scheduling(user_tasks)
 
-    start = time.time()
     preemptions = rm_solver.get_premptions()
-    end = time.time()
 
     if preemptions:
         print(1)
@@ -186,4 +183,3 @@ if __name__ == "__main__":
         print(0)
         print()
 
-    print(f"Time: {end - start:.4f}s")
