@@ -127,10 +127,15 @@ class RM_Scheduling:
                     if time_until > 1e-9 and time_until < time_to_next_event:
                         time_to_next_event = time_until
 
-            active_tasks = [task for task in sorted_tasks if remaining_e[task.task_id] > 1e-9]
-            
+            active_tasks = [
+                task for task in sorted_tasks if remaining_e[task.task_id] > 1e-9
+            ]
+
             if active_tasks:
-                earliest_deadline = min(next_release[task.task_id] - task.p + task.d for task in active_tasks)
+                earliest_deadline = min(
+                    next_release[task.task_id] - task.p + task.d
+                    for task in active_tasks
+                )
                 time_to_next_event = min(time_to_next_event, earliest_deadline - t)
 
             run_time = min(time_to_finish, time_to_next_event)
@@ -139,8 +144,11 @@ class RM_Scheduling:
             t += run_time
 
             # 2. Did any task fail to finish before its absolute deadline?
-            if any(t >= (next_release[task.task_id] - task.p + task.d) - 1e-9 
-                   for task in sorted_tasks if remaining_e[task.task_id] > 1e-9):
+            if any(
+                t >= (next_release[task.task_id] - task.p + task.d) - 1e-9
+                for task in sorted_tasks
+                if remaining_e[task.task_id] > 1e-9
+            ):
                 return {}
             # If the task finished, it's no longer "running"
             if remaining_e[running_task.task_id] < 1e-9:
@@ -152,6 +160,8 @@ class RM_Scheduling:
 
 
 if __name__ == "__main__":
+    import time
+
     if len(sys.argv) < 2:
         print("Usage: python script.py <task_file.csv>")
         sys.exit(1)
@@ -165,10 +175,15 @@ if __name__ == "__main__":
 
     rm_solver = RM_Scheduling(user_tasks)
 
+    start = time.time()
     preemptions = rm_solver.get_premptions()
+    end = time.time()
+
     if preemptions:
         print(1)
         print(",".join(str(count) for count in preemptions.values()))
     else:
         print(0)
         print()
+
+    print(f"Time: {end - start:.4f}s")
