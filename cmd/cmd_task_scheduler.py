@@ -62,8 +62,8 @@ class RM_Scheduling:
         if not self.tasks:
             return 0
 
-        periods = np.array([int(task.p) for task in self.tasks])
-        return int(np.lcm.reduce(periods))
+        int_periods = np.array([int(round(task.p * 1000)) for task in self.tasks])
+        return int(np.lcm.reduce(int_periods)) / 1000
 
     def get_premptions(self):
         self._get_priority()
@@ -72,91 +72,89 @@ class RM_Scheduling:
         if utilization > 1:
             return {}
 
-        hyperperiod = self._get_hyperperiod()
         sorted_tasks = sorted(self.tasks, key=lambda t: t.priority)
+        n = len(sorted_tasks)
 
-        preemptions = {task.task_id: 0 for task in self.tasks}
-        remaining_e = {task.task_id: 0.0 for task in self.tasks}
-        next_release = {task.task_id: 0.0 for task in self.tasks}
+        # Scale everything to integers (x1000) to avoid float drift
+        SCALE = 1000
+        exec_times = [int(round(task.e * SCALE)) for task in sorted_tasks]
+        periods = [int(round(task.p * SCALE)) for task in sorted_tasks]
+        deadlines = [int(round(task.d * SCALE)) for task in sorted_tasks]
+        task_ids = [task.task_id for task in sorted_tasks]
 
-        t = 0.0
-        last_running_task = None
+        hyperperiod = int(np.lcm.reduce(np.array(periods)))
+
+        preemptions = [0] * n
+        remaining_e = [0] * n
+        next_release = [0] * n
+
+        t = 0
+        last_running_idx = -1
 
         while t < hyperperiod:
             # Release jobs at time t
-            for task in sorted_tasks:
-                if t >= next_release[task.task_id]:
-                    remaining_e[task.task_id] += task.e
-                    next_release[task.task_id] += task.p
+            for i in range(n):
+                if t >= next_release[i]:
+                    remaining_e[i] += exec_times[i]
+                    next_release[i] += periods[i]
 
-            # Find highest-priority ready task
-            running_task = None
-            for task in sorted_tasks:
-                if remaining_e[task.task_id] > 1e-9:
-                    running_task = task
+            # Find highest-priority ready task (already sorted)
+            running_idx = -1
+            for i in range(n):
+                if remaining_e[i] > 0:
+                    running_idx = i
                     break
 
-            if running_task is None:  # SPEEEEEEEED UP
-                next_t = min(next_release.values())
-                t = next_t
-                last_running_task = None
+            if running_idx == -1:
+                t = min(next_release)
+                last_running_idx = -1
                 continue
 
-            # A preemption occurs only when a higher-priority task takes over
-            # from a task that still has remaining work
+            # Check preemption: higher-priority task took over
             if (
-                last_running_task is not None
-                and last_running_task != running_task.task_id
-                and remaining_e[last_running_task] > 1e-9
+                last_running_idx >= 0
+                and last_running_idx != running_idx
+                and remaining_e[last_running_idx] > 0
+                and running_idx < last_running_idx
             ):
-                # Verify the new task has higher priority (lower number)
-                last_priority = next(
-                    t.priority for t in self.tasks if t.task_id == last_running_task
-                )
-                if running_task.priority < last_priority:
-                    preemptions[last_running_task] += 1
+                preemptions[last_running_idx] += 1
 
             # Determine how long this task can run
-            time_to_finish = remaining_e[running_task.task_id]
-
-            # Find the earliest release of any higher-priority task
             time_to_next_event = hyperperiod - t
-            for task in sorted_tasks:
-                if task.priority < running_task.priority:
-                    time_until = next_release[task.task_id] - t
-                    if time_until > 1e-9 and time_until < time_to_next_event:
-                        time_to_next_event = time_until
 
-            active_tasks = [
-                task for task in sorted_tasks if remaining_e[task.task_id] > 1e-9
-            ]
+            # Next higher-priority release
+            for i in range(running_idx):
+                time_until = next_release[i] - t
+                if time_until > 0 and time_until < time_to_next_event:
+                    time_to_next_event = time_until
 
-            if active_tasks:
-                earliest_deadline = min(
-                    next_release[task.task_id] - task.p + task.d
-                    for task in active_tasks
-                )
-                time_to_next_event = min(time_to_next_event, earliest_deadline - t)
+            # Deadline of any waiting task
+            for i in range(n):
+                if remaining_e[i] > 0 and i != running_idx:
+                    abs_deadline = (next_release[i] - periods[i]) + deadlines[i]
+                    dt = abs_deadline - t
+                    if dt > 0 and dt < time_to_next_event:
+                        time_to_next_event = dt
 
-            run_time = min(time_to_finish, time_to_next_event)
-
-            remaining_e[running_task.task_id] -= run_time
+            run_time = min(remaining_e[running_idx], time_to_next_event)
+            remaining_e[running_idx] -= run_time
             t += run_time
 
-            # 2. Did any task fail to finish before its absolute deadline?
-            if any(
-                t >= (next_release[task.task_id] - task.p + task.d) - 1e-9
-                for task in sorted_tasks
-                if remaining_e[task.task_id] > 1e-9
-            ):
-                return {}
-            # If the task finished, it's no longer "running"
-            if remaining_e[running_task.task_id] < 1e-9:
-                last_running_task = None
-            else:
-                last_running_task = running_task.task_id
+            # Deadline check
+            for i in range(n):
+                if remaining_e[i] > 0:
+                    abs_deadline = (next_release[i] - periods[i]) + deadlines[i]
+                    if t >= abs_deadline:
+                        return {}
 
-        return preemptions
+            # Track last running task
+            if remaining_e[running_idx] <= 0:
+                last_running_idx = -1
+            else:
+                last_running_idx = running_idx
+
+        result = {task_ids[i]: preemptions[i] for i in range(n)}
+        return dict(sorted(result.items()))
 
 
 if __name__ == "__main__":
@@ -182,4 +180,3 @@ if __name__ == "__main__":
     else:
         print(0)
         print()
-
