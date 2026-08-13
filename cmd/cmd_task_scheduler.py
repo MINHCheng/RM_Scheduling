@@ -130,7 +130,7 @@ class RM_Scheduling:
 
             # Deadline of any waiting task
             for i in range(n):
-                if remaining_e[i] > 0 and i != running_idx:
+                if remaining_e[i] > 0:
                     abs_deadline = (next_release[i] - periods[i]) + deadlines[i]
                     dt = abs_deadline - t
                     if dt > 0 and dt < time_to_next_event:
@@ -170,9 +170,13 @@ if __name__ == "__main__":
             if line.strip()
         ]
 
+    # import time
+
     rm_solver = RM_Scheduling(user_tasks)
 
+    # start = time.time()
     preemptions = rm_solver.get_premptions()
+    # elapsed = time.time() - start
 
     if preemptions:
         print(1)
@@ -180,3 +184,5 @@ if __name__ == "__main__":
     else:
         print(0)
         print()
+
+    # print(f"Time: {elapsed:.4f}s")
