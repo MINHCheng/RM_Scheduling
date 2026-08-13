@@ -170,13 +170,10 @@ if __name__ == "__main__":
             if line.strip()
         ]
 
-    # import time
 
     rm_solver = RM_Scheduling(user_tasks)
 
-    # start = time.time()
     preemptions = rm_solver.get_premptions()
-    # elapsed = time.time() - start
 
     if preemptions:
         print(1)
@@ -185,4 +182,3 @@ if __name__ == "__main__":
         print(0)
         print()
 
-    # print(f"Time: {elapsed:.4f}s")

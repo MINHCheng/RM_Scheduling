@@ -7,7 +7,6 @@ Workload 2:
 
 0
 
-
 Workload 3:
 
 1
@@ -25,4 +24,113 @@ Workload 5:
 
 Workload 6:
 
+0
+
+Workload 7:
+
+0
+
+Workload 8:
+
+1
+0,1
+
+Workload 9:
+
+1
+0,0,0
+
+Workload 10:
+
+1
+0,0,1
+
+Workload 11:
+
+0
+
+Workload 12:
+
+1
+0,0,0,0
+
+Workload 13:
+
+0
+
+Workload 14:
+
+1
+0,0,0,6003498
+
+Workload 16:
+
+1
+0
+
+Workload 17:
+
+1
+0
+
+Workload 18:
+
+0
+
+Workload 19:
+
+1
+0,1
+
+Workload 20:
+
+1
+0,0
+
+Workload 21:
+
+1
+0,0
+
+Workload 22:
+
+1
+0,2
+
+Workload 23:
+
+1
+0,0,0
+
+Workload 24:
+
+1
+0,0
+
+Workload 25:
+
+0
+
+Workload 26:
+
+0
+
+Workload 27:
+
+1
+0,2
+
+Workload 28:
+
+1
+0,0
+
+Workload 29:
+
+1
+0,0,0
+
+Workload 30:
+
+1
 0
