@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 from dataclasses import dataclass
+import os
 
 
 @dataclass
@@ -168,9 +169,15 @@ class RM_Scheduling:
         return dict(sorted(result.items()))
 
 if __name__ == "__main__":
-
+    
     if len(sys.argv) < 2:
-        print("Usage: python script.py <task_file.csv>")
+        print("Error: No file provided. Usage: python script.py <task_file.csv>", file=sys.stderr)
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+
+    if not os.path.isfile(file_path):
+        print(f"Error: The file '{file_path}' was not found.", file=sys.stderr)
         sys.exit(1)
 
     with open(sys.argv[1], "r") as f:
@@ -179,6 +186,9 @@ if __name__ == "__main__":
             for i, line in enumerate(f)
             if line.strip()
         ]
+    if not user_tasks:
+        print(f"Error: No tasks are present in '{file_path}'.", file=sys.stderr)
+        sys.exit(1)
 
 
     rm_solver = RM_Scheduling(user_tasks)
