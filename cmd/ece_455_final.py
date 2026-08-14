@@ -64,7 +64,6 @@ class RM_Scheduling:
 
         int_periods = np.array([int(round(task.p * 1000)) for task in self.tasks])
         return int(np.lcm.reduce(int_periods)) / 1000
-
     def get_premptions(self):
         self._get_priority()
 
@@ -75,7 +74,6 @@ class RM_Scheduling:
         sorted_tasks = sorted(self.tasks, key=lambda t: t.priority)
         n = len(sorted_tasks)
 
-        # Scale everything to integers (x1000) to avoid float drift
         SCALE = 1000
         exec_times = [int(round(task.e * SCALE)) for task in sorted_tasks]
         periods = [int(round(task.p * SCALE)) for task in sorted_tasks]
@@ -85,8 +83,9 @@ class RM_Scheduling:
         hyperperiod = int(np.lcm.reduce(np.array(periods)))
 
         preemptions = [0] * n
-        remaining_e = [0] * n
         next_release = [0] * n
+        
+        active_jobs = [[] for _ in range(n)]
 
         t = 0
         last_running_idx = -1
@@ -94,17 +93,21 @@ class RM_Scheduling:
         while t < hyperperiod:
             # Release jobs at time t
             for i in range(n):
-                if t >= next_release[i]:
-                    remaining_e[i] += exec_times[i]
+                # FIX 1: Use a while loop to catch all releases, and calculate 
+                # absolute deadline strictly using the exact release time, not 't'.
+                while t >= next_release[i]:
+                    abs_deadline = next_release[i] + deadlines[i]
+                    active_jobs[i].append([exec_times[i], abs_deadline])
                     next_release[i] += periods[i]
 
-            # Find highest-priority ready task (already sorted)
+            # Find highest-priority ready task
             running_idx = -1
             for i in range(n):
-                if remaining_e[i] > 0:
+                if active_jobs[i] and active_jobs[i][0][0] > 0:
                     running_idx = i
                     break
 
+            # If no tasks are ready, skip to the next release
             if running_idx == -1:
                 t = min(next_release)
                 last_running_idx = -1
@@ -114,7 +117,7 @@ class RM_Scheduling:
             if (
                 last_running_idx >= 0
                 and last_running_idx != running_idx
-                and remaining_e[last_running_idx] > 0
+                and active_jobs[last_running_idx]
                 and running_idx < last_running_idx
             ):
                 preemptions[last_running_idx] += 1
@@ -122,40 +125,47 @@ class RM_Scheduling:
             # Determine how long this task can run
             time_to_next_event = hyperperiod - t
 
-            # Next higher-priority release
-            for i in range(running_idx):
+            # FIX 2: Check the next release for ALL tasks (range(n)) so the 
+            # simulation doesn't skip over the release events of lower-priority tasks.
+            for i in range(n):
                 time_until = next_release[i] - t
                 if time_until > 0 and time_until < time_to_next_event:
                     time_to_next_event = time_until
 
-            # Deadline of any waiting task
+            # Check earliest deadline of any waiting task
             for i in range(n):
-                if remaining_e[i] > 0:
-                    abs_deadline = (next_release[i] - periods[i]) + deadlines[i]
-                    dt = abs_deadline - t
+                if active_jobs[i]:
+                    dt = active_jobs[i][0][1] - t
                     if dt > 0 and dt < time_to_next_event:
                         time_to_next_event = dt
 
-            run_time = min(remaining_e[running_idx], time_to_next_event)
-            remaining_e[running_idx] -= run_time
+            # Execute the oldest job
+            run_time = min(active_jobs[running_idx][0][0], time_to_next_event)
+            active_jobs[running_idx][0][0] -= run_time
             t += run_time
+
+            # FIX 3: Track if a job actually finished right now.
+            job_finished = False
+            if active_jobs[running_idx][0][0] <= 0:
+                active_jobs[running_idx].pop(0)
+                job_finished = True
 
             # Deadline check
             for i in range(n):
-                if remaining_e[i] > 0:
-                    abs_deadline = (next_release[i] - periods[i]) + deadlines[i]
-                    if t >= abs_deadline:
+                if active_jobs[i]:
+                    earliest_deadline = active_jobs[i][0][1]
+                    if t > earliest_deadline or (t == earliest_deadline and active_jobs[i][0][0] > 0):
                         return {}
 
-            # Track last running task
-            if remaining_e[running_idx] <= 0:
+            # FIX 4: If the job finished, clear the last_running_idx state so we 
+            # don't falsely register a preemption if the next job is already queued.
+            if job_finished or not active_jobs[running_idx]:
                 last_running_idx = -1
             else:
                 last_running_idx = running_idx
 
         result = {task_ids[i]: preemptions[i] for i in range(n)}
         return dict(sorted(result.items()))
-
 
 if __name__ == "__main__":
 
